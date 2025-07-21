@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <title>Strzelanka 2D</title>
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      font-family: sans-serif;
+    }
+    #gameCanvas {
+      background: #222;
+      display: block;
+    }
+    #hud {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      color: white;
+      font-size: 18px;
+    }
+    #gameOver {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: white;
+      text-align: center;
+      display: none;
+    }
+    button {
+      padding: 10px 20px;
+      margin-top: 10px;
+      font-size: 18px;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+  <div id="hud">Punkty: 0</div>
+  <div id="gameOver">
+    <h1>Przegrana!</h1>
+    <p id="medalText"></p>
+    <p id="scoreText"></p>
+    <button onclick="restartGame()">Spróbuj ponownie</button>
+  </div>
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+
+    let keys = {}; let bullets = []; let enemies = [];
+    let player = { x: 400, y: 300, speed: 3, hp: 100, score: 0 };
+    let gameOver = false, maxScore = 0;
+
+    document.addEventListener('keydown', e => keys[e.key] = true);
+    document.addEventListener('keyup', e => keys[e.key] = false);
+    canvas.addEventListener('mousedown', () => shoot());
+
+    function shoot() {
+      if (gameOver) return;
+      bullets.push({ x: player.x + 10, y: player.y + 10, dx: 10 });
+    }
+
+    function spawnEnemy() {
+      const y = Math.random() * 580;
+      enemies.push({ x: 800, y: y, hp: 1, cooldown: 0 });
+    }
+
+    function update() {
+      if (gameOver) return;
+
+      // Movement
+      if (keys['w']) player.y -= player.speed;
+      if (keys['s']) player.y += player.speed;
+      if (keys['a']) player.x -= player.speed;
+      if (keys['d']) player.x += player.speed;
+
+      // Boundaries
+      player.x = Math.max(0, Math.min(canvas.width - 20, player.x));
+      player.y = Math.max(0, Math.min(canvas.height - 20, player.y));
+
+      // Bullets
+      bullets.forEach((b, i) => {
+        b.x += b.dx;
+        if (b.x > 800) bullets.splice(i, 1);
+      });
+
+      // Enemies
+      enemies.forEach((e, i) => {
+        e.x -= 2;
+        e.cooldown--;
+
+        // Shoot at player
+        if (e.cooldown <= 0) {
+          if (Math.random() < 0.02) {
+            if (Math.abs(e.y - player.y) < 20) {
+              player.hp -= 10;
+              if (player.hp <= 0) endGame();
+              e.cooldown = 60;
+            }
+          }
+        }
+
+        // Check collision
+        bullets.forEach((b, bi) => {
+          if (b.x > e.x && b.x < e.x + 20 && b.y > e.y && b.y < e.y + 20) {
+            enemies.splice(i, 1);
+            bullets.splice(bi, 1);
+            player.score++;
+          }
+        });
+
+        if (e.x < -20) enemies.splice(i, 1);
+      });
+
+      // HUD
+      document.getElementById("hud").textContent = `Punkty: ${player.score}`;
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Player
+      ctx.fillStyle = "lime";
+      ctx.fillRect(player.x, player.y, 20, 20);
+
+      // Bullets
+      ctx.fillStyle = "yellow";
+      bullets.forEach(b => ctx.fillRect(b.x, b.y, 10, 2));
+
+      // Enemies
+      ctx.fillStyle = "red";
+      enemies.forEach(e => ctx.fillRect(e.x, e.y, 20, 20));
+    }
+
+    function gameLoop() {
+      update();
+      draw();
+      requestAnimationFrame(gameLoop);
+    }
+
+    function endGame() {
+      gameOver = true;
+      maxScore = Math.max(maxScore, player.score);
+
+      const scoreText = document.getElementById("scoreText");
+      const medalText = document.getElementById("medalText");
+
+      scoreText.textContent = `Twój wynik: ${player.score} | Rekord: ${maxScore}`;
+      if (player.score >= 1000) medalText.textContent = "🏆 Platynowy Puchar";
+      else if (player.score >= 500) medalText.textContent = "🥇 Złoty Puchar";
+      else if (player.score >= 250) medalText.textContent = "🥈 Srebrny Puchar";
+      else if (player.score >= 100) medalText.textContent = "🥉 Brązowy Puchar";
+      else medalText.textContent = "Bez Pucharu";
+
+      document.getElementById("gameOver").style.display = "block";
+    }
+
+    function restartGame() {
+      bullets = [];
+      enemies = [];
+      player.hp = 100;
+      player.score = 0;
+      player.x = 400;
+      player.y = 300;
+      gameOver = false;
+      document.getElementById("gameOver").style.display = "none";
+    }
+
+    setInterval(spawnEnemy, 1000);
+    gameLoop();
+  </script>
+</body>
+</html>
