@@ -1,176 +1,728 @@
 <!DOCTYPE html>
 <html lang="pl">
 <head>
-  <meta charset="UTF-8">
-  <title>Strzelanka 2D</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Strzelanka 2D – nowa jakość</title>
   <style>
-    body, html {
+    * {
       margin: 0;
       padding: 0;
-      overflow: hidden;
-      font-family: sans-serif;
+      box-sizing: border-box;
+      user-select: none;
     }
-    #gameCanvas {
-      background: #222;
+    body {
+      background: #111;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      font-family: 'Segoe UI', Arial, sans-serif;
+    }
+    #gameWrapper {
+      position: relative;
+      border: 2px solid #444;
+      border-radius: 12px;
+      box-shadow: 0 0 30px rgba(0,200,255,0.3);
+    }
+    canvas {
       display: block;
+      border-radius: 10px;
+      background: #1a1a2e;
+      width: 100%;
+      height: auto;
+      max-width: 1000px;
+      cursor: crosshair;
     }
     #hud {
       position: absolute;
-      top: 10px;
-      right: 10px;
-      color: white;
+      top: 15px;
+      left: 20px;
+      right: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: #fff;
       font-size: 18px;
+      font-weight: bold;
+      text-shadow: 0 0 10px rgba(0,0,0,0.8);
+      pointer-events: none;
+    }
+    #hud div {
+      background: rgba(0,0,0,0.5);
+      padding: 6px 14px;
+      border-radius: 20px;
+      backdrop-filter: blur(4px);
+    }
+    #hpBar {
+      width: 200px;
+      height: 14px;
+      background: #333;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid #555;
+    }
+    #hpFill {
+      width: 100%;
+      height: 100%;
+      background: #0f0;
+      transition: width 0.2s;
     }
     #gameOver {
       position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      color: white;
-      text-align: center;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.75);
+      backdrop-filter: blur(6px);
       display: none;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      color: #fff;
+      border-radius: 10px;
+      text-align: center;
+      padding: 20px;
     }
-    button {
-      padding: 10px 20px;
-      margin-top: 10px;
-      font-size: 18px;
+    #gameOver h1 {
+      font-size: 48px;
+      margin-bottom: 10px;
+      color: #ff6b6b;
+      text-shadow: 0 0 20px #ff0000aa;
+    }
+    #gameOver p {
+      font-size: 22px;
+      margin: 6px 0;
+    }
+    #gameOver button {
+      margin-top: 20px;
+      padding: 12px 36px;
+      font-size: 22px;
+      font-weight: bold;
+      border: none;
+      border-radius: 40px;
+      background: #4ecdc4;
+      color: #111;
+      cursor: pointer;
+      transition: 0.2s;
+      box-shadow: 0 0 20px #4ecdc477;
+    }
+    #gameOver button:hover {
+      transform: scale(1.05);
+      background: #45b7aa;
+    }
+    #controlsInfo {
+      position: absolute;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: #aaa;
+      font-size: 14px;
+      background: rgba(0,0,0,0.6);
+      padding: 4px 16px;
+      border-radius: 30px;
+      backdrop-filter: blur(2px);
+      pointer-events: none;
+      white-space: nowrap;
+    }
+    @media (max-width: 700px) {
+      #hud { font-size: 14px; }
+      #hpBar { width: 120px; }
+      #gameOver h1 { font-size: 32px; }
     }
   </style>
 </head>
 <body>
-  <canvas id="gameCanvas" width="800" height="600"></canvas>
-  <div id="hud">Punkty: 0</div>
-  <div id="gameOver">
-    <h1>Przegrana!</h1>
-    <p id="medalText"></p>
-    <p id="scoreText"></p>
-    <button onclick="restartGame()">Spróbuj ponownie</button>
+<div id="gameWrapper">
+  <canvas id="gameCanvas" width="1000" height="650"></canvas>
+
+  <div id="hud">
+    <div>💥 <span id="scoreDisplay">0</span></div>
+    <div style="display:flex; align-items:center; gap:12px;">
+      <span>❤️</span>
+      <div id="hpBar"><div id="hpFill" style="width:100%"></div></div>
+      <span id="hpText">100</span>
+    </div>
+    <div>🏆 <span id="highScoreDisplay">0</span></div>
   </div>
-  <script>
-    const canvas = document.getElementById("gameCanvas");
-    const ctx = canvas.getContext("2d");
 
-    let keys = {}; let bullets = []; let enemies = [];
-    let player = { x: 400, y: 300, speed: 3, hp: 100, score: 0 };
-    let gameOver = false, maxScore = 0;
+  <div id="gameOver">
+    <h1>PRZEGRANA!</h1>
+    <p id="medalText">🥉 Brązowy Puchar</p>
+    <p id="scoreText">Wynik: 0  |  Rekord: 0</p>
+    <button onclick="restartGame()">🔄 Zagraj ponownie</button>
+  </div>
 
-    document.addEventListener('keydown', e => keys[e.key] = true);
-    document.addEventListener('keyup', e => keys[e.key] = false);
-    canvas.addEventListener('mousedown', () => shoot());
+  <div id="controlsInfo">🖱️ Kliknij / przytrzymaj – strzelaj &nbsp;|&nbsp; WSAD – ruch</div>
+</div>
 
-    function shoot() {
-      if (gameOver) return;
-      bullets.push({ x: player.x + 10, y: player.y + 10, dx: 10 });
+<script>
+  // ---------- USTAWIENIA ----------
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  const W = 1000, H = 650;
+
+  // Elementy HUD
+  const scoreSpan = document.getElementById('scoreDisplay');
+  const highScoreSpan = document.getElementById('highScoreDisplay');
+  const hpFill = document.getElementById('hpFill');
+  const hpText = document.getElementById('hpText');
+  const gameOverDiv = document.getElementById('gameOver');
+  const medalText = document.getElementById('medalText');
+  const scoreText = document.getElementById('scoreText');
+
+  // ---------- ZMIENNE GRY ----------
+  let player = {
+    x: W/2, y: H/2,
+    radius: 14,
+    speed: 4.2,
+    hp: 100,
+    maxHp: 100,
+    score: 0,
+    shootCooldown: 0,
+    shootDelay: 6, // klatki
+    invincible: 0
+  };
+
+  let bullets = [];
+  let enemyBullets = [];
+  let enemies = [];
+  let particles = [];
+  let powerups = [];
+
+  let keys = {};
+  let mouseX = player.x, mouseY = player.y;
+  let mouseDown = false;
+  let gameRunning = true;
+  let gameOverFlag = false;
+  let highScore = parseInt(localStorage.getItem('shooter2d_high')) || 0;
+  highScoreSpan.textContent = highScore;
+
+  let frame = 0;
+  let enemySpawnCounter = 0;
+  let enemySpawnInterval = 45; // klatki
+  let difficulty = 1;
+
+  // ---------- KLASA POCISKÓW ----------
+  class Bullet {
+    constructor(x, y, dx, dy, owner = 'player') {
+      this.x = x;
+      this.y = y;
+      this.dx = dx;
+      this.dy = dy;
+      this.radius = 4;
+      this.owner = owner;
+      this.speed = owner === 'player' ? 9 : 3.5;
+      this.life = 200;
     }
-
-    function spawnEnemy() {
-      const y = Math.random() * 580;
-      enemies.push({ x: 800, y: y, hp: 1, cooldown: 0 });
+    update() {
+      this.x += this.dx * this.speed;
+      this.y += this.dy * this.speed;
+      this.life--;
+      return this.x > -10 && this.x < W+10 && this.y > -10 && this.y < H+10 && this.life > 0;
     }
+    draw() {
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.radius, 0, Math.PI*2);
+      if (this.owner === 'player') {
+        ctx.fillStyle = '#ffe066';
+        ctx.shadowColor = '#ffdd44';
+        ctx.shadowBlur = 16;
+      } else {
+        ctx.fillStyle = '#ff4757';
+        ctx.shadowColor = '#ff0000';
+        ctx.shadowBlur = 14;
+      }
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+  }
 
-    function update() {
-      if (gameOver) return;
+  // ---------- KLASA WRÓG ----------
+  class Enemy {
+    constructor(x, y, type = 'basic') {
+      this.x = x;
+      this.y = y;
+      this.type = type;
+      this.radius = type === 'tank' ? 22 : type === 'speedy' ? 12 : 16;
+      this.hp = type === 'tank' ? 5 : type === 'speedy' ? 1 : 2;
+      this.maxHp = this.hp;
+      this.speed = type === 'speedy' ? 2.8 : type === 'tank' ? 1.0 : 1.6;
+      this.shootCooldown = 0;
+      this.shootDelay = type === 'speedy' ? 30 : type === 'tank' ? 80 : 50;
+      this.value = type === 'tank' ? 30 : type === 'speedy' ? 15 : 10;
+      this.color = type === 'tank' ? '#b71540' : type === 'speedy' ? '#f0932b' : '#eb4d4b';
+    }
+    update() {
+      // ruch w stronę gracza (z lekkim opóźnieniem)
+      const dx = player.x - this.x;
+      const dy = player.y - this.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist > 1) {
+        this.x += (dx / dist) * this.speed * 0.6;
+        this.y += (dy / dist) * this.speed * 0.6;
+      }
+      // strzelanie
+      this.shootCooldown--;
+      if (this.shootCooldown <= 0 && dist < 500) {
+        const angle = Math.atan2(dy, dx);
+        const spd = 3 + difficulty * 0.2;
+        enemyBullets.push(new Bullet(
+          this.x + Math.cos(angle)*this.radius,
+          this.y + Math.sin(angle)*this.radius,
+          Math.cos(angle), Math.sin(angle), 'enemy'
+        ));
+        this.shootCooldown = this.shootDelay - Math.min(difficulty * 2, 25);
+        if (this.shootCooldown < 15) this.shootCooldown = 15;
+      }
+      return this.x > -30 && this.x < W+30 && this.y > -30 && this.y < H+30;
+    }
+    draw() {
+      // cień
+      ctx.shadowColor = 'rgba(0,0,0,0.5)';
+      ctx.shadowBlur = 12;
+      // ciało
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.radius, 0, Math.PI*2);
+      ctx.fillStyle = this.color;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      // pasek HP
+      if (this.hp < this.maxHp) {
+        const barW = this.radius * 1.6;
+        const barH = 4;
+        const x0 = this.x - barW/2;
+        const y0 = this.y - this.radius - 8;
+        ctx.fillStyle = '#333';
+        ctx.fillRect(x0, y0, barW, barH);
+        ctx.fillStyle = '#0f0';
+        ctx.fillRect(x0, y0, barW * (this.hp/this.maxHp), barH);
+      }
+      // oczy
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(this.x-5, this.y-5, 4, 0, Math.PI*2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(this.x+5, this.y-5, 4, 0, Math.PI*2);
+      ctx.fill();
+      ctx.fillStyle = '#111';
+      ctx.beginPath();
+      ctx.arc(this.x-6, this.y-7, 2, 0, Math.PI*2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(this.x+4, this.y-7, 2, 0, Math.PI*2);
+      ctx.fill();
+    }
+  }
 
-      // Movement
-      if (keys['w']) player.y -= player.speed;
-      if (keys['s']) player.y += player.speed;
-      if (keys['a']) player.x -= player.speed;
-      if (keys['d']) player.x += player.speed;
+  // ---------- POWER-UPY ----------
+  class Powerup {
+    constructor(x, y, type) {
+      this.x = x;
+      this.y = y;
+      this.type = type; // 'heal', 'speed', 'shield'
+      this.radius = 12;
+      this.life = 400; // klatki
+      this.color = type === 'heal' ? '#2ecc71' : type === 'speed' ? '#3498db' : '#f1c40f';
+      this.symbol = type === 'heal' ? '❤️' : type === 'speed' ? '⚡' : '🛡️';
+    }
+    update() {
+      this.y += Math.sin(this.life * 0.05) * 0.3;
+      this.life--;
+      return this.life > 0;
+    }
+    draw() {
+      ctx.shadowColor = this.color + 'aa';
+      ctx.shadowBlur = 20;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.radius, 0, Math.PI*2);
+      ctx.fillStyle = this.color + '66';
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.font = '20px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#fff';
+      ctx.fillText(this.symbol, this.x, this.y);
+    }
+  }
 
-      // Boundaries
-      player.x = Math.max(0, Math.min(canvas.width - 20, player.x));
-      player.y = Math.max(0, Math.min(canvas.height - 20, player.y));
+  // ---------- FUNKCJE POMOCNICZE ----------
+  function spawnEnemy() {
+    const side = Math.floor(Math.random() * 4);
+    let x, y;
+    if (side === 0) { x = -20; y = Math.random() * H; }
+    else if (side === 1) { x = W+20; y = Math.random() * H; }
+    else if (side === 2) { x = Math.random() * W; y = -20; }
+    else { x = Math.random() * W; y = H+20; }
+    // typ w zależności od trudności
+    const r = Math.random();
+    let type = 'basic';
+    if (difficulty > 3 && r < 0.15) type = 'tank';
+    else if (difficulty > 2 && r < 0.35) type = 'speedy';
+    enemies.push(new Enemy(x, y, type));
+  }
 
-      // Bullets
-      bullets.forEach((b, i) => {
-        b.x += b.dx;
-        if (b.x > 800) bullets.splice(i, 1);
+  function spawnPowerup(x, y) {
+    if (Math.random() < 0.08) { // 8% szans
+      const types = ['heal', 'speed', 'shield'];
+      const type = types[Math.floor(Math.random() * types.length)];
+      powerups.push(new Powerup(x, y, type));
+    }
+  }
+
+  function spawnParticles(x, y, color, count = 12) {
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 2 + Math.random() * 4;
+      particles.push({
+        x, y,
+        dx: Math.cos(angle) * speed,
+        dy: Math.sin(angle) * speed,
+        life: 30 + Math.random() * 30,
+        maxLife: 60,
+        radius: 2 + Math.random() * 4,
+        color: color,
+        decay: 0.97
       });
+    }
+  }
 
-      // Enemies
-      enemies.forEach((e, i) => {
-        e.x -= 2;
-        e.cooldown--;
+  // ---------- STRZELANIE ----------
+  function shootBullet() {
+    if (player.shootCooldown > 0 || !gameRunning || gameOverFlag) return;
+    const angle = Math.atan2(mouseY - player.y, mouseX - player.x);
+    const spread = 0.03; // lekki rozrzut
+    const ang = angle + (Math.random() - 0.5) * spread;
+    const spd = 9 + difficulty * 0.1;
+    bullets.push(new Bullet(
+      player.x + Math.cos(ang)*player.radius,
+      player.y + Math.sin(ang)*player.radius,
+      Math.cos(ang), Math.sin(ang), 'player'
+    ));
+    player.shootCooldown = player.shootDelay;
+    // efekt dymku
+    spawnParticles(
+      player.x + Math.cos(ang)*player.radius,
+      player.y + Math.sin(ang)*player.radius,
+      '#ffdd55', 3
+    );
+  }
 
-        // Shoot at player
-        if (e.cooldown <= 0) {
-          if (Math.random() < 0.02) {
-            if (Math.abs(e.y - player.y) < 20) {
-              player.hp -= 10;
-              if (player.hp <= 0) endGame();
-              e.cooldown = 60;
-            }
+  // ---------- AKTUALIZACJA ----------
+  function update() {
+    if (!gameRunning || gameOverFlag) return;
+    frame++;
+
+    // --- Gracz ---
+    let dx = 0, dy = 0;
+    if (keys['w'] || keys['W'] || keys['ArrowUp']) dy = -1;
+    if (keys['s'] || keys['S'] || keys['ArrowDown']) dy = 1;
+    if (keys['a'] || keys['A'] || keys['ArrowLeft']) dx = -1;
+    if (keys['d'] || keys['D'] || keys['ArrowRight']) dx = 1;
+    if (dx !== 0 && dy !== 0) { dx *= 0.707; dy *= 0.707; }
+    player.x += dx * player.speed;
+    player.y += dy * player.speed;
+    player.x = Math.max(player.radius, Math.min(W - player.radius, player.x));
+    player.y = Math.max(player.radius, Math.min(H - player.radius, player.y));
+
+    // Cooldown strzału
+    if (player.shootCooldown > 0) player.shootCooldown--;
+    if (mouseDown) shootBullet();
+
+    // Niewrażliwość
+    if (player.invincible > 0) player.invincible--;
+
+    // --- Pociski gracza ---
+    bullets = bullets.filter(b => b.update());
+    // --- Pociski wroga ---
+    enemyBullets = enemyBullets.filter(b => b.update());
+
+    // --- Wrogowie ---
+    enemies = enemies.filter(e => e.update());
+
+    // --- Power-upy ---
+    powerups = powerups.filter(p => p.update());
+
+    // --- Spawn wrogów ---
+    enemySpawnCounter++;
+    const baseInterval = Math.max(20, enemySpawnInterval - difficulty * 2);
+    if (enemySpawnCounter >= baseInterval) {
+      enemySpawnCounter = 0;
+      const count = Math.min(1 + Math.floor(difficulty / 3), 4);
+      for (let i = 0; i < count; i++) spawnEnemy();
+    }
+
+    // --- Kolizje: pocisk gracza vs wróg ---
+    for (let i = bullets.length - 1; i >= 0; i--) {
+      const b = bullets[i];
+      for (let j = enemies.length - 1; j >= 0; j--) {
+        const e = enemies[j];
+        const dist = Math.hypot(b.x - e.x, b.y - e.y);
+        if (dist < b.radius + e.radius) {
+          // trafienie
+          e.hp--;
+          spawnParticles(b.x, b.y, e.color, 8);
+          bullets.splice(i, 1);
+          if (e.hp <= 0) {
+            player.score += e.value;
+            spawnParticles(e.x, e.y, e.color, 20);
+            spawnPowerup(e.x, e.y);
+            enemies.splice(j, 1);
           }
+          break;
         }
-
-        // Check collision
-        bullets.forEach((b, bi) => {
-          if (b.x > e.x && b.x < e.x + 20 && b.y > e.y && b.y < e.y + 20) {
-            enemies.splice(i, 1);
-            bullets.splice(bi, 1);
-            player.score++;
-          }
-        });
-
-        if (e.x < -20) enemies.splice(i, 1);
-      });
-
-      // HUD
-      document.getElementById("hud").textContent = `Punkty: ${player.score}`;
+      }
     }
 
-    function draw() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      // Player
-      ctx.fillStyle = "lime";
-      ctx.fillRect(player.x, player.y, 20, 20);
-
-      // Bullets
-      ctx.fillStyle = "yellow";
-      bullets.forEach(b => ctx.fillRect(b.x, b.y, 10, 2));
-
-      // Enemies
-      ctx.fillStyle = "red";
-      enemies.forEach(e => ctx.fillRect(e.x, e.y, 20, 20));
+    // --- Kolizje: pocisk wroga vs gracz ---
+    if (player.invincible === 0) {
+      for (let i = enemyBullets.length - 1; i >= 0; i--) {
+        const b = enemyBullets[i];
+        const dist = Math.hypot(b.x - player.x, b.y - player.y);
+        if (dist < b.radius + player.radius) {
+          player.hp -= 15 + Math.floor(difficulty * 2);
+          spawnParticles(player.x, player.y, '#ff6b6b', 15);
+          enemyBullets.splice(i, 1);
+          player.invincible = 20;
+          if (player.hp <= 0) { player.hp = 0; endGame(); return; }
+        }
+      }
     }
 
-    function gameLoop() {
-      update();
-      draw();
-      requestAnimationFrame(gameLoop);
+    // --- Kolizje: wróg vs gracz ---
+    if (player.invincible === 0) {
+      for (let i = enemies.length - 1; i >= 0; i--) {
+        const e = enemies[i];
+        const dist = Math.hypot(e.x - player.x, e.y - player.y);
+        if (dist < e.radius + player.radius) {
+          player.hp -= 20 + difficulty * 2;
+          spawnParticles(player.x, player.y, '#ff0000', 20);
+          enemies.splice(i, 1);
+          player.invincible = 25;
+          if (player.hp <= 0) { player.hp = 0; endGame(); return; }
+        }
+      }
     }
 
-    function endGame() {
-      gameOver = true;
-      maxScore = Math.max(maxScore, player.score);
-
-      const scoreText = document.getElementById("scoreText");
-      const medalText = document.getElementById("medalText");
-
-      scoreText.textContent = `Twój wynik: ${player.score} | Rekord: ${maxScore}`;
-      if (player.score >= 1000) medalText.textContent = "🏆 Platynowy Puchar";
-      else if (player.score >= 500) medalText.textContent = "🥇 Złoty Puchar";
-      else if (player.score >= 250) medalText.textContent = "🥈 Srebrny Puchar";
-      else if (player.score >= 100) medalText.textContent = "🥉 Brązowy Puchar";
-      else medalText.textContent = "Bez Pucharu";
-
-      document.getElementById("gameOver").style.display = "block";
+    // --- Kolizje: gracz vs power-up ---
+    for (let i = powerups.length - 1; i >= 0; i--) {
+      const p = powerups[i];
+      const dist = Math.hypot(p.x - player.x, p.y - player.y);
+      if (dist < p.radius + player.radius) {
+        if (p.type === 'heal') {
+          player.hp = Math.min(player.maxHp, player.hp + 30);
+          spawnParticles(p.x, p.y, '#2ecc71', 20);
+        } else if (p.type === 'speed') {
+          player.speed = 6.5;
+          setTimeout(() => { player.speed = 4.2; }, 5000);
+          spawnParticles(p.x, p.y, '#3498db', 20);
+        } else if (p.type === 'shield') {
+          player.invincible = 120; // 2 sekundy ochrony
+          spawnParticles(p.x, p.y, '#f1c40f', 25);
+        }
+        powerups.splice(i, 1);
+      }
     }
 
-    function restartGame() {
-      bullets = [];
-      enemies = [];
-      player.hp = 100;
-      player.score = 0;
-      player.x = 400;
-      player.y = 300;
-      gameOver = false;
-      document.getElementById("gameOver").style.display = "none";
+    // --- Aktualizacja trudności ---
+    difficulty = 1 + Math.floor(player.score / 80);
+    if (difficulty > 15) difficulty = 15;
+
+    // --- Aktualizacja HUD ---
+    scoreSpan.textContent = player.score;
+    highScoreSpan.textContent = highScore;
+    const hpPercent = (player.hp / player.maxHp) * 100;
+    hpFill.style.width = Math.max(0, hpPercent) + '%';
+    if (hpPercent > 60) hpFill.style.background = '#2ecc71';
+    else if (hpPercent > 30) hpFill.style.background = '#f1c40f';
+    else hpFill.style.background = '#e74c3c';
+    hpText.textContent = Math.max(0, Math.round(player.hp));
+
+    // --- Cząsteczki ---
+    particles = particles.filter(p => {
+      p.x += p.dx;
+      p.y += p.dy;
+      p.dx *= p.decay;
+      p.dy *= p.decay;
+      p.life--;
+      return p.life > 0;
+    });
+  }
+
+  // ---------- RYSOWANIE ----------
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    // tło
+    const grad = ctx.createRadialGradient(W/2, H/2, 100, W/2, H/2, 500);
+    grad.addColorStop(0, '#1e1e3a');
+    grad.addColorStop(1, '#0a0a1a');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+
+    // siatka (efekt)
+    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < W; i += 50) {
+      ctx.beginPath();
+      ctx.moveTo(i, 0);
+      ctx.lineTo(i, H);
+      ctx.stroke();
+    }
+    for (let i = 0; i < H; i += 50) {
+      ctx.beginPath();
+      ctx.moveTo(0, i);
+      ctx.lineTo(W, i);
+      ctx.stroke();
     }
 
-    setInterval(spawnEnemy, 1000);
-    gameLoop();
-  </script>
+    // power-upy
+    powerups.forEach(p => p.draw());
+
+    // wrogowie
+    enemies.forEach(e => e.draw());
+
+    // pociski gracza
+    bullets.forEach(b => b.draw());
+
+    // pociski wroga
+    enemyBullets.forEach(b => b.draw());
+
+    // cząsteczki
+    particles.forEach(p => {
+      ctx.globalAlpha = p.life / p.maxLife;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.radius * (p.life / p.maxLife), 0, Math.PI*2);
+      ctx.fillStyle = p.color;
+      ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+
+    // gracz
+    ctx.shadowColor = '#00ccffaa';
+    ctx.shadowBlur = 25;
+    ctx.beginPath();
+    ctx.arc(player.x, player.y, player.radius, 0, Math.PI*2);
+    ctx.fillStyle = player.invincible > 0 && Math.floor(Date.now()/100) % 2 === 0 ? '#aaffaa' : '#4ecdc4';
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    // oczy gracza
+    const eyeAngle = Math.atan2(mouseY - player.y, mouseX - player.x);
+    const eyeOff = 6;
+    for (let side = -1; side <= 1; side+=2) {
+      const ex = player.x + Math.cos(eyeAngle + side*0.8) * eyeOff;
+      const ey = player.y + Math.sin(eyeAngle + side*0.8) * eyeOff;
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(ex, ey, 5, 0, Math.PI*2);
+      ctx.fill();
+      ctx.fillStyle = '#111';
+      ctx.beginPath();
+      ctx.arc(ex + Math.cos(eyeAngle)*3, ey + Math.sin(eyeAngle)*3, 2.5, 0, Math.PI*2);
+      ctx.fill();
+    }
+    // uśmiech
+    ctx.strokeStyle = '#111';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(player.x, player.y+3, 6, 0.1, Math.PI-0.1);
+    ctx.stroke();
+
+    // napisy
+    ctx.fillStyle = 'rgba(255,255,255,0.2)';
+    ctx.font = '14px monospace';
+    ctx.fillText('Poziom trudności: ' + difficulty, 20, H-20);
+  }
+
+  // ---------- KONIEC GRY ----------
+  function endGame() {
+    if (gameOverFlag) return;
+    gameOverFlag = true;
+    gameRunning = false;
+    if (player.score > highScore) {
+      highScore = player.score;
+      localStorage.setItem('shooter2d_high', String(highScore));
+    }
+    // medale
+    let medal = '';
+    if (player.score >= 1000) medal = '🏆 Platynowy Puchar';
+    else if (player.score >= 500) medal = '🥇 Złoty Puchar';
+    else if (player.score >= 250) medal = '🥈 Srebrny Puchar';
+    else if (player.score >= 100) medal = '🥉 Brązowy Puchar';
+    else medal = '😢 Brak pucharu';
+    medalText.textContent = medal;
+    scoreText.textContent = `Twój wynik: ${player.score}  |  Rekord: ${highScore}`;
+    gameOverDiv.style.display = 'flex';
+  }
+
+  // ---------- RESTART ----------
+  function restartGame() {
+    player.x = W/2;
+    player.y = H/2;
+    player.hp = player.maxHp;
+    player.score = 0;
+    player.speed = 4.2;
+    player.invincible = 0;
+    player.shootCooldown = 0;
+    bullets = [];
+    enemyBullets = [];
+    enemies = [];
+    particles = [];
+    powerups = [];
+    gameOverFlag = false;
+    gameRunning = true;
+    difficulty = 1;
+    enemySpawnCounter = 0;
+    gameOverDiv.style.display = 'none';
+    highScoreSpan.textContent = highScore;
+  }
+
+  // ---------- PĘTLA GRY ----------
+  function gameLoop() {
+    update();
+    draw();
+    requestAnimationFrame(gameLoop);
+  }
+
+  // ---------- EVENTY ----------
+  document.addEventListener('keydown', e => {
+    keys[e.key] = true;
+    if (e.key === ' ' || e.key === 'Space') {
+      e.preventDefault();
+      shootBullet();
+    }
+  });
+  document.addEventListener('keyup', e => keys[e.key] = false);
+
+  canvas.addEventListener('mousemove', e => {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    mouseX = (e.clientX - rect.left) * scaleX;
+    mouseY = (e.clientY - rect.top) * scaleY;
+    mouseX = Math.max(0, Math.min(W, mouseX));
+    mouseY = Math.max(0, Math.min(H, mouseY));
+  });
+
+  canvas.addEventListener('mousedown', e => {
+    e.preventDefault();
+    if (e.button === 0) {
+      mouseDown = true;
+      shootBullet();
+    }
+  });
+  canvas.addEventListener('mouseup', e => {
+    if (e.button === 0) mouseDown = false;
+  });
+  canvas.addEventListener('mouseleave', () => { mouseDown = false; });
+
+  // Blokada kontekstu
+  canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+  // Start
+  gameLoop();
+</script>
 </body>
 </html>
