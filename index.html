@@ -176,13 +176,13 @@
   let player = {
     x: W/2, y: H/2,
     radius: 14,
-    speed: 4.2,
+    speed: 3.8,      // trochę wolniej niż wcześniej – łatwiej się kontroluje
     hp: 100,
     maxHp: 100,
     score: 0,
     shootCooldown: 0,
-    shootDelay: 6, // klatki
-    invincible: 0
+    shootDelay: 8,   // klatki – lekko wolniejsze, mniej chaotyczne strzelanie
+    invincible: 60   // krótka nietykalność na starcie, żeby nie zginąć w 1. sekundzie
   };
 
   let bullets = [];
@@ -201,7 +201,7 @@
 
   let frame = 0;
   let enemySpawnCounter = 0;
-  let enemySpawnInterval = 45; // klatki
+  let enemySpawnInterval = 65; // klatki – wrogowie pojawiają się rzadziej
   let difficulty = 1;
 
   // ---------- KLASA POCISKÓW ----------
@@ -213,7 +213,7 @@
       this.dy = dy;
       this.radius = 4;
       this.owner = owner;
-      this.speed = owner === 'player' ? 9 : 3.5;
+      this.speed = owner === 'player' ? 9 : 3.2;
       this.life = 200;
     }
     update() {
@@ -248,9 +248,11 @@
       this.radius = type === 'tank' ? 22 : type === 'speedy' ? 12 : 16;
       this.hp = type === 'tank' ? 5 : type === 'speedy' ? 1 : 2;
       this.maxHp = this.hp;
-      this.speed = type === 'speedy' ? 2.8 : type === 'tank' ? 1.0 : 1.6;
-      this.shootCooldown = 0;
-      this.shootDelay = type === 'speedy' ? 30 : type === 'tank' ? 80 : 50;
+      this.speed = type === 'speedy' ? 2.2 : type === 'tank' ? 0.9 : 1.3;
+      this.shootDelay = type === 'speedy' ? 50 : type === 'tank' ? 110 : 70;
+      // WAŻNE: cooldown startuje PEŁNY, więc wróg nie strzela w tej samej
+      // klatce, w której się pojawia (to było źródłem błyskawicznych trafień)
+      this.shootCooldown = this.shootDelay;
       this.value = type === 'tank' ? 30 : type === 'speedy' ? 15 : 10;
       this.color = type === 'tank' ? '#b71540' : type === 'speedy' ? '#f0932b' : '#eb4d4b';
     }
@@ -265,16 +267,15 @@
       }
       // strzelanie
       this.shootCooldown--;
-      if (this.shootCooldown <= 0 && dist < 500) {
+      if (this.shootCooldown <= 0 && dist < 450) {
         const angle = Math.atan2(dy, dx);
-        const spd = 3 + difficulty * 0.2;
         enemyBullets.push(new Bullet(
           this.x + Math.cos(angle)*this.radius,
           this.y + Math.sin(angle)*this.radius,
           Math.cos(angle), Math.sin(angle), 'enemy'
         ));
-        this.shootCooldown = this.shootDelay - Math.min(difficulty * 2, 25);
-        if (this.shootCooldown < 15) this.shootCooldown = 15;
+        this.shootCooldown = this.shootDelay - Math.min(difficulty, 20);
+        if (this.shootCooldown < 25) this.shootCooldown = 25;
       }
       return this.x > -30 && this.x < W+30 && this.y > -30 && this.y < H+30;
     }
@@ -396,7 +397,6 @@
     const angle = Math.atan2(mouseY - player.y, mouseX - player.x);
     const spread = 0.03; // lekki rozrzut
     const ang = angle + (Math.random() - 0.5) * spread;
-    const spd = 9 + difficulty * 0.1;
     bullets.push(new Bullet(
       player.x + Math.cos(ang)*player.radius,
       player.y + Math.sin(ang)*player.radius,
@@ -448,10 +448,10 @@
 
     // --- Spawn wrogów ---
     enemySpawnCounter++;
-    const baseInterval = Math.max(20, enemySpawnInterval - difficulty * 2);
+    const baseInterval = Math.max(30, enemySpawnInterval - difficulty * 2);
     if (enemySpawnCounter >= baseInterval) {
       enemySpawnCounter = 0;
-      const count = Math.min(1 + Math.floor(difficulty / 3), 4);
+      const count = Math.min(1 + Math.floor(difficulty / 4), 3);
       for (let i = 0; i < count; i++) spawnEnemy();
     }
 
@@ -478,16 +478,20 @@
     }
 
     // --- Kolizje: pocisk wroga vs gracz ---
+    // Uwaga: sprawdzamy nietykalność PRZED każdym trafieniem (nie tylko raz na
+    // początku pętli), inaczej kilka pocisków w tej samej klatce potrafiło
+    // zdjąć całe HP naraz i gra kończyła się w kilka sekund.
     if (player.invincible === 0) {
       for (let i = enemyBullets.length - 1; i >= 0; i--) {
         const b = enemyBullets[i];
         const dist = Math.hypot(b.x - player.x, b.y - player.y);
         if (dist < b.radius + player.radius) {
-          player.hp -= 15 + Math.floor(difficulty * 2);
+          player.hp -= 8 + Math.floor(difficulty * 1.5);
           spawnParticles(player.x, player.y, '#ff6b6b', 15);
           enemyBullets.splice(i, 1);
-          player.invincible = 20;
+          player.invincible = 45;
           if (player.hp <= 0) { player.hp = 0; endGame(); return; }
+          break; // tylko jedno trafienie na klatkę
         }
       }
     }
@@ -498,11 +502,12 @@
         const e = enemies[i];
         const dist = Math.hypot(e.x - player.x, e.y - player.y);
         if (dist < e.radius + player.radius) {
-          player.hp -= 20 + difficulty * 2;
+          player.hp -= 12 + Math.floor(difficulty * 1.5);
           spawnParticles(player.x, player.y, '#ff0000', 20);
           enemies.splice(i, 1);
-          player.invincible = 25;
+          player.invincible = 50;
           if (player.hp <= 0) { player.hp = 0; endGame(); return; }
+          break; // tylko jedno trafienie na klatkę
         }
       }
     }
@@ -516,8 +521,8 @@
           player.hp = Math.min(player.maxHp, player.hp + 30);
           spawnParticles(p.x, p.y, '#2ecc71', 20);
         } else if (p.type === 'speed') {
-          player.speed = 6.5;
-          setTimeout(() => { player.speed = 4.2; }, 5000);
+          player.speed = 5.6;
+          setTimeout(() => { player.speed = 3.8; }, 4000);
           spawnParticles(p.x, p.y, '#3498db', 20);
         } else if (p.type === 'shield') {
           player.invincible = 120; // 2 sekundy ochrony
@@ -528,8 +533,8 @@
     }
 
     // --- Aktualizacja trudności ---
-    difficulty = 1 + Math.floor(player.score / 80);
-    if (difficulty > 15) difficulty = 15;
+    difficulty = 1 + Math.floor(player.score / 120);
+    if (difficulty > 12) difficulty = 12;
 
     // --- Aktualizacja HUD ---
     scoreSpan.textContent = player.score;
@@ -608,7 +613,10 @@
     ctx.fillStyle = player.invincible > 0 && Math.floor(Date.now()/100) % 2 === 0 ? '#aaffaa' : '#4ecdc4';
     ctx.fill();
     ctx.shadowBlur = 0;
-    // oczy gracza
+
+    // twarz gracza - oczy i uśmiech obracają się RAZEM w stronę kursora,
+    // wcześniej uśmiech był narysowany na sztywno u dołu, przez co przy obrocie
+    // oczu wyglądał na "przyklejony" i wizualnie się rozjeżdżał
     const eyeAngle = Math.atan2(mouseY - player.y, mouseX - player.x);
     const eyeOff = 6;
     for (let side = -1; side <= 1; side+=2) {
@@ -623,12 +631,17 @@
       ctx.arc(ex + Math.cos(eyeAngle)*3, ey + Math.sin(eyeAngle)*3, 2.5, 0, Math.PI*2);
       ctx.fill();
     }
-    // uśmiech
+    // uśmiech - narysowany w lokalnym układzie obróconym o eyeAngle, dzięki
+    // czemu zawsze "patrzy" w tę samą stronę co oczy
+    ctx.save();
+    ctx.translate(player.x, player.y);
+    ctx.rotate(eyeAngle + Math.PI/2);
     ctx.strokeStyle = '#111';
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.arc(player.x, player.y+3, 6, 0.1, Math.PI-0.1);
+    ctx.arc(0, 4, 6, 0.15, Math.PI-0.15);
     ctx.stroke();
+    ctx.restore();
 
     // napisy
     ctx.fillStyle = 'rgba(255,255,255,0.2)';
@@ -663,8 +676,8 @@
     player.y = H/2;
     player.hp = player.maxHp;
     player.score = 0;
-    player.speed = 4.2;
-    player.invincible = 0;
+    player.speed = 3.8;
+    player.invincible = 60; // krótka ochrona po restarcie
     player.shootCooldown = 0;
     bullets = [];
     enemyBullets = [];
